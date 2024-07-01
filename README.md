@@ -1,4 +1,4 @@
-please look at "ai text detection project readme.pdf" to know about the project in detail.
+Please look at "ai text detection project readme.pdf" to know about the project in detail.
 
 Look at "ai.mp4" for demo video
 
