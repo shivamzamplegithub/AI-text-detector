@@ -1,0 +1,72 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from transformers import GPT2LMHeadModel, GPT2Tokenizer, BertModel, BertTokenizer
+from torch.utils.data import Dataset, DataLoader
+import pandas as pd
+import torch
+import io
+import torch.nn.functional as F
+import random
+import numpy as np
+import time
+import math
+import datetime
+import torch.nn as nn
+from transformers import AutoModel, AutoTokenizer, AutoConfig
+from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
+bert_tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+model_name = "bert-base-cased"
+transformer = AutoModel.from_pretrained(model_name)
+
+
+
+def predict(text, tokenizer, transformer, discriminator):
+    # Tokenize input text
+    inputs = tokenizer(text, return_tensors='pt', padding=True, truncation=True, max_length=100)
+    
+    # Move tensors to the appropriate device
+    input_ids = inputs['input_ids']
+    attention_mask = inputs['attention_mask']
+
+    # Get embeddings from BERT
+    with torch.no_grad():
+        outputs = transformer(input_ids, attention_mask=attention_mask)
+        hidden_states = outputs.last_hidden_state[:, 0, :]  # Use the [CLS] token representation
+
+    # Get predictions from custom model
+    with torch.no_grad():
+        logits = discriminator(hidden_states)
+        probs = torch.softmax(logits, dim=1)
+        _, preds = torch.max(probs, dim=1)
+    
+    return preds, probs
+# Example usage
+text = "Your input text here"
+preds, probs = predict(text, bert_tokenizer, transformer, discriminator)
+print(f"Predicted class: {preds.item()}, Probabilities: {probs}")
+
+class Discriminator(nn.Module):
+    def __init__(self, input_size=512, hidden_sizes=[512], num_labels=2, dropout_rate=0.1):
+        super(Discriminator, self).__init__()
+        self.input_dropout = nn.Dropout(p=dropout_rate)
+        layers = []
+        hidden_sizes = [input_size] + hidden_sizes
+        for i in range(len(hidden_sizes)-1):
+            layers.extend([nn.Linear(hidden_sizes[i], hidden_sizes[i+1]), nn.LeakyReLU(0.2, inplace=True), nn.Dropout(dropout_rate)])
+
+        self.layers = nn.Sequential(*layers) #per il flatten
+        self.logit = nn.Linear(hidden_sizes[-1],num_labels)
+        #nn linear is a module which is used to create a single layer feed-forward network
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, input_rep):
+        input_rep = self.input_dropout(input_rep)
+        last_rep = self.layers(input_rep)
+        #Logits simply means that the function operates on the unscaled output of earlier layers and that the relative scale to understand the units is linear. It means, in particular, the sum of the inputs may not equal 1
+        logits = self.logit(last_rep)
+        probs = self.softmax(logits)
+        return last_rep, logits, probs
+
+discriminator = Discriminator(input_size=512, hidden_sizes=[512], num_labels=2, dropout_rate=0.1)
+discriminator_checkpoint.pth
